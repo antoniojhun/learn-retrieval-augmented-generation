@@ -1,102 +1,256 @@
 # Introduction to Retrieval Augmented Generation
 
 This repository will introduce you to Retrieval Augmented Generation (RAG) with
-easy to use examples that you can build upon. The examples use Python with
+easy-to-use examples that you can build upon. The examples use Python with
 Jupyter Notebooks and CSV files. The vector database uses the Qdrant database
 which can run in-memory.
 
 ## Setup your environment
 
 This example can run in Codespaces but you can use the following if you are
-cloniing this repository:
+cloning this repository:
 
 **Install the dependencies**
 
 Create the virtual environment and install the dependencies:
 
-```
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 .venv/bin/pip install -r requirements.txt
 ```
 
-Here is a summary of what this repository will use:
+**Upgrade `numpy` and `pandas`**
 
-1. [Qdrant](https://github.com/qdrant/qdrant) for the vector database. We will use an in-memory database for the examples
-2. [Llamafile](https://github.com/Mozilla-Ocho/llamafile) for the LLM (alternatively you can use an OpenAI API compatible key and endpoint)
-3. [OpenAI's Python API](https://pypi.org/project/openai/) to connect to the LLM after retrieving the vectors response from Qdrant
-4. Sentence Transformers to create the embeddings with minimal effort
+To avoid potential binary incompatibility issues, upgrade `numpy` and `pandas`:
 
-**Use Llamafile for a full RAG and LLM setup**
-
-The examples for the [Applied Rag notebook](./examples/3-applied-rag/embeddings.ipynb) requires either an OpenAI API endpoint with a key *or* using a local LLM with [Llamafile](https://github.com/Mozilla-Ocho/llamafile).
-
-I recommend using the [Phi-2 model](https://github.com/Mozilla-Ocho/llamafile?tab=readme-ov-file#other-example-llamafiles) which is about 2GB in size. You can download the model from the Llamafile repository and run it in your system:
-
-Once you have it running you can connect to it with Python or use the [Applied Rag Notebook](./examples/3-applied-rag/embeddings.ipynb). Here is a quick example of how to use the Llamafile with Python:
-
-```python
-#!/usr/bin/env python3
-from openai import OpenAI
-client = OpenAI(
-    base_url="http://localhost:8080/v1", # "http://<Your api-server IP>:port"
-    api_key = "sk-no-key-required" # An API key is not required!
-)
-completion = client.chat.completions.create(
-    model="LLaMA_CPP",
-    messages=[
-        {"role": "system", "content": "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests."},
-        {"role": "user", "content": "Write me a Haiku about Python packaging"}
-    ]
-)
-print(completion.choices[0].message)
+```bash
+python3 -m pip install --upgrade numpy pandas
 ```
 
-## Lesson 1: Import your data
+Here is a summary of what this repository will use:
 
-Learn how to use Pandas to import your data from a CSV file. The data will be used to create the embeddings for the vector database later and you will need to format it as a list of dictionaries.
+1. [Qdrant](https://github.com/qdrant/qdrant) for the vector database. We will use an in-memory database for the examples.
+2. [Llamafile](https://github.com/Mozilla-Ocho/llamafile) for the LLM (alternatively you can use an OpenAI API compatible key and endpoint).
+3. [OpenAI's Python API](https://pypi.org/project/openai/) to connect to the LLM after retrieving the vectors response from Qdrant.
+4. Sentence Transformers to create the embeddings with minimal effort.
 
-Notebook: [Managing Data](./examples/1-managing-data/example.ipynb)
+## Setup and Run Phi-3 Model with Ollama
 
-## Lesson 2: Create embeddings
+To run the Phi-3 model with Ollama and make it accessible over the network, follow these steps:
 
-Use Sentence Transformers to create the embeddings for your data. This will be used to store the vectors in the Qdrant database. You will verify that the embeddings are created and stored in the database and that a search works correctly
+### Step 1: Set Environment Variables
 
-Notebook: [Creating and verifying Embeddings](./examples/2-embeddings/embeddings.ipynb)
+Open Terminal and set the `OLLAMA_HOST` environment variable to listen on all interfaces:
 
-## Lesson 3: Create a RAG with LLM and Qdrant using your own data
+```bash
+launchctl setenv OLLAMA_HOST "0.0.0.0"
+```
 
-Use a local LLM with Llamafile or an OpenAI API endpoint to create a RAG with your own data. The end result should be in your own repository containing the complete code for the enhanced RAG pattern based on the example provided.
+Restart the Ollama application if it's already running.
 
-Notebook: [Applied Rag Notebook](./examples/3-applied-rag/embeddings.ipynb)
+### Step 2: Start the Ollama Service
 
-## Lesson 4: Practice Lab
+Run the Ollama service:
 
-Use the [included practice lab](./lab.md) to apply the content you've learned in this week. Follow the steps to create your own repository and apply the requirements to complete the lab.
+```bash
+ollama run phi3
+```
 
+Note the port number from the terminal output. Let's assume it's `11434`.
 
-## Course Resources
+### Step 3: Verify the Server is Running
 
-If you've completed all these examples and the lab, here are some other courses
-from Coursera you can explore:
+Use `curl` to verify if the server is running:
 
+```bash
+curl http://localhost:11434/api/generate -d '
+{
+  "model": "phi3",
+  "prompt": "Why is the sky blue?",
+  "stream": false,
+  "options": {
+    "num_thread": 8,
+    "num_ctx": 2024
+  }
+}' | jq .
+```
 
+## Step 4: Run the Scripts
 
-**Large Language Models:**
+First, you will import and prepare your data. Then, you will embed the data and finally, you will run the main script to search and generate a response.
 
-- [Operationalizing LLMs on Azure](https://www.coursera.org/learn/llmops-azure)
-- [Using Databricks with
-  LLMs](https://www.coursera.org/learn/databricks-to-local-llms)
+### Step 4.1: Import Your Data
 
-**Machine Learning:**
+#### `import_data.py`
 
-- [MLOps Machine Learning Operations Specialization](https://www.coursera.org/specializations/mlops-machine-learning-duke)
-- [Open Source Platforms for MLOps](https://www.coursera.org/learn/open-source-platforms-duke)
-- [Python Essentials for MLOps](https://www.coursera.org/learn/python-essentials-mlops-duke)
+```python
+import pandas as pd
 
-**Data Engineering:**
+# Step 1: Read the CSV file
+df = pd.read_csv('top_rated_wines.csv')
 
-- [Linux and Bash for Data Engineering](https://www.coursera.org/learn/linux-and-bash-for-data-engineering-duke)
-- [Web Applications and Command-Line tools for Data Engineering](https://www.coursera.org/learn/web-app-command-line-tools-for-data-engineering-duke)
-- [Python and Pandas for Data Engineering](https://www.coursera.org/learn/python-and-pandas-for-data-engineering-duke)
-- [Scripting with Python and SQL for Data Engineering](https://www.coursera.org/learn/scripting-with-python-sql-for-data-engineering-duke)
+# Step 2: Display the first few rows of the DataFrame
+print("First few rows of the DataFrame:")
+print(df.head())
+
+# Step 3: Display the descriptive statistics of the DataFrame
+print("\nDescriptive statistics of the DataFrame:")
+print(df.describe())
+
+# Step 4: Convert the DataFrame to a list of dictionaries
+records = df.to_dict('records')
+
+# Step 5: Display the first few records to verify the conversion
+print("\nFirst few records as dictionaries:")
+print(records[:5])
+
+# Save the list of dictionaries to a file for further processing if needed
+import json
+with open('top_rated_wines_records.json', 'w') as f:
+    json.dump(records, f, indent=4)
+```
+
+### Step 4.2: Create Embeddings
+
+#### `embed_data.py`
+
+```python
+import pandas as pd
+from sentence_transformers import SentenceTransformer
+import qdrant_client
+from qdrant_client.http import models
+
+# Load the data
+df = pd.read_csv('/top_rated_wines.csv')
+records = df.to_dict('records')
+
+# Initialize the Sentence Transformer model
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Create embeddings
+texts = [record['notes'] for record in records]
+embeddings = model.encode(texts, show_progress_bar=True)
+
+# Initialize Qdrant client
+client = qdrant_client.QdrantClient(":memory:")
+
+# Create a collection in Qdrant
+client.recreate_collection(
+    collection_name="wine_descriptions",
+    vectors_config=qdrant_client.http.models.VectorParams(size=embeddings.shape[1], distance=qdrant_client.http.models.Distance.COSINE)
+)
+
+# Upload the embeddings to Qdrant
+client.upload_collection(
+    collection_name="wine_descriptions",
+    vectors=embeddings,
+    payload=records,
+    batch_size=100
+)
+
+print("Embeddings created and uploaded to Qdrant successfully.")
+```
+
+### Step 4.3: Run the Main Script
+
+The combined script will create embeddings, upload them to Qdrant, and perform a search and generate a completion using the local LLM.
+
+#### `main.py`
+
+```python
+import pandas as pd
+from sentence_transformers import SentenceTransformer
+import qdrant_client
+from qdrant_client.http.models import SearchRequest
+import requests
+
+# Load the data
+df = pd.read_csv('top_rated_wines.csv')
+records = df.to_dict('records')
+
+# Initialize the Sentence Transformer model
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Create embeddings
+texts = [record['notes'] for record in records]
+embeddings = model.encode(texts, show_progress_bar=True)
+
+# Initialize Qdrant client
+client = qdrant_client.QdrantClient(":memory:")
+
+# Create a collection in Qdrant
+client.recreate_collection(
+    collection_name="wine_descriptions",
+    vectors_config=qdrant_client.http.models.VectorParams(size=embeddings.shape[1], distance=qdrant_client.http.models.Distance.COSINE)
+)
+
+# Upload the embeddings to Qdrant
+client.upload_collection(
+    collection_name="wine_descriptions",
+    vectors=embeddings,
+    payload=records,
+    batch_size=100
+)
+
+print("Embeddings created and uploaded to Qdrant successfully.")
+
+def search_qdrant(query_text, collection_name="wine_descriptions", top_k=5):
+    # Encode the query text to get the query vector
+    query_vector = model.encode([query_text])[0]
+    
+    search_result = client.search(
+        collection_name=collection_name,
+        query_vector=query_vector,
+        limit=top_k
+    )
+    return search_result
+
+def generate_completion(prompt, model="phi3"):
+    base_url = "http://localhost:11434/api/generate"
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "num_thread": 8,
+            "num_ctx": 2024
+        }
+    }
+    response = requests.post(base_url, json=payload)
+    return response.json()
+
+# Example usage
+query_text = "Best wine with fruity flavor"
+search_results = search_qdrant(query_text)
+print("Search results from Qdrant:")
+for result in search_results:
+    print(result)
+
+prompt = "Using the information from the search results, write a description of a perfect wine pairing."
+completion = generate_completion(prompt)
+print("Generated completion from LLM:")
+print(completion)
+```
+
+### How to Run the Scripts
+
+1. **Activate the virtual environment**:
+   ```bash
+   source .venv/bin/activate
+   ```
+
+2. **Run the `import_data.py` script** to import your data:
+   ```bash
+   python import_data.py
+   ```
+
+3. **Run the `embed_data.py` script** to create embeddings:
+   ```bash
+   python embed_data.py
+   ```
+
+4. **Run the `main.py` script** to search and generate responses:
+   ```bash
+   python main.py
+   ```
